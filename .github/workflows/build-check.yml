@@ -18,8 +18,8 @@ jobs:
         config:
           - { name: "Ubuntu gcc7", os: ubuntu-latest, cc: "gcc-7", cxx: "g++-7" }
           - { name: "Ubuntu gcc10", os: ubuntu-latest, cc: "gcc-10", cxx: "g++-10" }
-          - { name: "Ubuntu clang7", os: ubuntu-latest, cc: "clang-7", cxx: "clang-7" }
-          - { name: "Ubuntu clang10", os: ubuntu-latest, cc: "clang-10", cxx: "clang-10" }
+          - { name: "Ubuntu clang7", os: ubuntu-latest, cc: "clang-7", cxx: "clang++-7" }
+          - { name: "Ubuntu clang10", os: ubuntu-latest, cc: "clang-10", cxx: "clang++-10" }
     steps:
       - name: Install deps    
         run: |
