@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# user define
+*user*
+*build*
+*.in
+*autosave*
