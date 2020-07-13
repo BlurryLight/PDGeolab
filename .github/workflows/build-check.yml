@@ -9,58 +9,37 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
-
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.config.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest,ubuntu-latest]
-        include:
-        - os: macos-latest
-          CC: clang
-          CXX: clang++
-
-        - os: windows-latest
-          CXX: cl
-          CC: cl
-
-        - os: ubuntu-latest
-          CC: clang
-          CXX: clang++
-        
-        - os: ubuntu-latest
-          CC: gcc
-          CXX: g++
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
+        config:
+          - { name: "Ubuntu gcc7", os: ubuntu-latest, cc: "gcc-7", cxx: "g++-7" }
+          - { name: "Ubuntu gcc10", os: ubuntu-latest, cc: "gcc-10", cxx: "g++-10" }
+          - { name: "Ubuntu clang7", os: ubuntu-latest, cc: "clang-7", cxx: "clang-7" }
+          - { name: "Ubuntu clang10", os: ubuntu-latest, cc: "clang-10", cxx: "clang-10" }
     steps:
-    - name: Get latest CMake
-      # Using 'latest' branch, the latest CMake is installed.
-      uses: lukka/get-cmake@latest 
-      
-    - name: Install Ninja
-      uses: seanmiddleditch/gha-setup-ninja@master
-      
-    - name: Setup VS Environment
-      if: startsWith(matrix.os, 'windows')
-      uses: seanmiddleditch/gha-setup-vsdevenv@master
-    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-    - name: Checkout
-      uses: actions/checkout@v2
-      with:
-        submodules: 'recursive'
-      
-    - name: configure
-      env:
-        CXX: ${{matrix.CXX}}
-        CC: ${{matrix.CC}}
-      run: |
-        mkdir build
-        cd build
-        cmake -GNinja -DCMAKE_BUILD_TYPE=RELEASE ..
-    - name: build
-      run:  cmake --build build --parallel
+      - name: Install deps    
+        run: |
+            sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+            sudo apt-get update
+            sudo apt-get install libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev mesa-common-dev clang-10 g++-10 clang-7 g++-7
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: Setup Ninja
+        uses: ashutoshvarma/setup-ninja@master
+        with:
+          # ninja version to download. Default: 1.10.0
+          version: 1.10.0
+
+      - name: Build with CMake
+        uses: ashutoshvarma/action-cmake-build@master
+        with:
+          build-dir: ${{ runner.workspace }}/build
+          cc: ${{ matrix.config.cc }}
+          cxx: ${{ matrix.config.cxx }}
+          configure-options: -G Ninja
+          build-type: Release

@@ -34,5 +34,5 @@
 # user define
 *user*
 *build*
-*.in
+cmake_vars.h
 *autosave*

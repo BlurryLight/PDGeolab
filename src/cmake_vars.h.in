@@ -12,8 +12,8 @@ inline std::string ver_string(int a, int b, int c) {
 }
 } // namespace impl
 
-inline std::string ROOT_DIR = "/mnt/SSD/QTC++/PDGeolab";
-inline std::string BUILD_TYPE = "Debug";
+inline std::string ROOT_DIR = "@ROOT_DIR_VAR@";
+inline std::string BUILD_TYPE = "@BUILD_TYPE_VAR@";
 inline std::string BUILD_COMPILER =
 #ifdef __clang__
     "clang++";
@@ -35,9 +35,9 @@ inline std::string CXX_VER =
     "Unknown Compiler Version";
 #endif
 
-inline std::string BUILD_SYSTEM_VERSION = "5.4.44-1-MANJARO";
-inline std::string BUILD_SYSTEM_NAME = "Linux";
-inline std::string BUILD_UTC_TIMESTAMP = "2020-07-13T08:46:14Z";
+inline std::string BUILD_SYSTEM_VERSION = "@BUILD_SYSTEM_VERSION_VAR@";
+inline std::string BUILD_SYSTEM_NAME = "@BUILD_SYSTEM_NAME_VAR@";
+inline std::string BUILD_UTC_TIMESTAMP = "@BUILD_UTC_TIMESTAMP_VAR@";
 
 
 } // namespace PD
