@@ -54,9 +54,7 @@ configure_file(${CMAKE_SOURCE_DIR}/src/cmake_vars.h.in ${CMAKE_SOURCE_DIR}/src/c
 
 # Executable definition and properties
 add_executable(${PROJECT_NAME} ${SOURCES} ${IMGUI_SOURCE})
-target_include_directories(${PROJECT_NAME} PRIVATE third_party/)
-target_include_directories(${PROJECT_NAME} PRIVATE ${glm_SOURCE_DIR} ${tinyobjloader_SOURCE_DIR})
-message(${glm_SOURCE_DIR})
+target_include_directories(${PROJECT_NAME} PRIVATE third_party/ ${glm_SOURCE_DIR} ${GLM_INCLUDE_DIR})
 target_compile_definitions(${PROJECT_NAME} PRIVATE -DIMGUI_IMPL_OPENGL_LOADER_GLAD)
 target_link_libraries(${PROJECT_NAME} PRIVATE
   glad
