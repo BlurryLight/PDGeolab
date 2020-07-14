@@ -25,7 +25,7 @@ jobs:
         run: |
             sudo add-apt-repository ppa:ubuntu-toolchain-r/test
             sudo apt-get update
-            sudo apt-get install libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev mesa-common-dev clang-10 g++-10 clang-7 g++-7
+            sudo apt-get install libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev mesa-common-dev clang-10 g++-10 clang-7 g++-7 libglm-dev libassimp-dev libglfw3-dev
       - uses: actions/checkout@v2
         with:
           submodules: recursive

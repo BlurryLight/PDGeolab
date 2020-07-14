@@ -4,10 +4,26 @@ project(PD_GEO_LAB)
 
 include(FetchContent)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
-set(FETCHCONTENT_QUIET OFF CACHE BOOL "" FORCE)
-include(cmake/glfw.cmake)
-include(cmake/glm.cmake)
-include(cmake/assimp.cmake)
+#set(FETCHCONTENT_QUIET OFF CACHE BOOL "" FORCE)
+find_package(glfw3)
+find_package(glm)
+find_package(assimp)
+
+if(NOT glfw3_FOUND)
+    message("GLFW NOT FOUND! DOWNLOAD GLFW FROM GITHUB!")
+    include(cmake/glfw.cmake)
+endif()
+
+if(NOT glm_FOUND)
+    message("GLM NOT FOUND! DOWNLOAD GLM FROM GITHUB!")
+    include(cmake/glm.cmake)
+endif()
+
+if(NOT assimp_FOUND)
+    message("ASSIMP NOT FOUND! DOWNLOAD ASSIMP FROM GITHUB!")
+    include(cmake/assimp.cmake)
+endif()
+
 
 # Source files
 set(SRC_DIR "src")
