@@ -3,8 +3,11 @@ cmake_minimum_required(VERSION 3.14)
 project(PD_GEO_LAB)
 
 include(FetchContent)
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
+set(FETCHCONTENT_QUIET OFF CACHE BOOL "" FORCE)
 include(cmake/glfw.cmake)
 include(cmake/glm.cmake)
+include(cmake/assimp.cmake)
 
 # Source files
 set(SRC_DIR "src")
@@ -13,6 +16,8 @@ set(SOURCES
     ${SRC_DIR}/main.cc
     ${SRC_DIR}/resource_path_searcher.h
     ${SRC_DIR}/resource_path_searcher.cc
+    ${SRC_DIR}/glsupport.h
+    ${SRC_DIR}/glsupport.cc
     )
 file(GLOB IMGUI_SOURCE third_party/imgui/*)
 #deps
@@ -34,10 +39,13 @@ configure_file(${CMAKE_SOURCE_DIR}/src/cmake_vars.h.in ${CMAKE_SOURCE_DIR}/src/c
 # Executable definition and properties
 add_executable(${PROJECT_NAME} ${SOURCES} ${IMGUI_SOURCE})
 target_include_directories(${PROJECT_NAME} PRIVATE third_party/)
+target_include_directories(${PROJECT_NAME} PRIVATE ${glm_SOURCE_DIR} ${tinyobjloader_SOURCE_DIR})
+message(${glm_SOURCE_DIR})
 target_compile_definitions(${PROJECT_NAME} PRIVATE -DIMGUI_IMPL_OPENGL_LOADER_GLAD)
 target_link_libraries(${PROJECT_NAME} PRIVATE
   glad
   glfw
+  assimp
   ${CMAKE_DL_LIBS}
   )
 set_target_properties(${PROJECT_NAME}
