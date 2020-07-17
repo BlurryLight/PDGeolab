@@ -485,53 +485,6 @@ void PD::Shader::checkCompileErrors(GLuint shader, std::string type) {
   }
 }
 
-// void Model::draw(const Shader &shader) const {
-//  shader.use();
-//  for (const auto &it : meshes_) {
-//    glBindVertexArray(it.vao);
-//    glDrawArrays(GL_TRIANGLES, 0, it.size());
-//  }
-//}
-
-// Model::Model(const std::string &path) {
-
-//  loader_ = std::make_unique<objl::Loader>();
-//  if (!loader_->LoadFile(path)) {
-//    std::cerr << path << "cannot be loaded!" << std::endl;
-//    return;
-//  }
-//  for (size_t i = 0; i < loader_->LoadedMeshes.size(); i++) {
-//    objl::Mesh curMesh = loader_->LoadedMeshes[i];
-//    Model::Mesh tmpMesh;
-//    for (size_t j = 0; j < curMesh.Vertices.size(); j++) {
-//      tmpMesh.vertices_.push_back(curMesh.Vertices[j]);
-//    }
-//    for (size_t j = 0; j < curMesh.Indices.size(); j++) {
-//      tmpMesh.indices_.push_back(curMesh.Indices[j]);
-//    }
-//    glGenVertexArrays(1, &tmpMesh.vao);
-//    glGenBuffers(1, &tmpMesh.vbo);
-//    glBindVertexArray(tmpMesh.vao);
-//    glBindBuffer(GL_ARRAY_BUFFER, tmpMesh.vbo);
-//    glBufferData(GL_ARRAY_BUFFER, tmpMesh.BufferDataSize(),
-//                 tmpMesh.vertices_.data(), GL_STATIC_DRAW);
-
-//    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-//                          (void *)0);
-//    glEnableVertexAttribArray(0);
-//    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-//                          (void *)(3 * sizeof(float)));
-//    glEnableVertexAttribArray(1);
-//    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-//                          (void *)(6 * sizeof(float)));
-//    glEnableVertexAttribArray(2);
-//    glBindBuffer(GL_ARRAY_BUFFER, 0);
-//    glBindVertexArray(0);
-
-//    this->meshes_.push_back(tmpMesh);
-//  }
-//}
-
 Mesh::Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices,
            std::vector<Texture> textures) {
   this->vertices = vertices;
@@ -635,9 +588,9 @@ void Model::Draw(Shader &shader) {
 void Model::loadModel(const std::string &path) {
   // read file via ASSIMP
   Assimp::Importer importer;
-  const aiScene *scene =
-      importer.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs |
-                                  aiProcess_CalcTangentSpace);
+  const aiScene *scene = importer.ReadFile(
+      path, aiProcess_Triangulate | aiProcess_FlipUVs |
+                aiProcess_CalcTangentSpace | aiProcess_GenNormals);
   // check for errors
   if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ||
       !scene->mRootNode) // if is Not Zero
@@ -704,15 +657,17 @@ Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene) {
     } else
       vertex.TexCoords = glm::vec2(0.0f, 0.0f);
     // tangent
-    vector.x = mesh->mTangents[i].x;
-    vector.y = mesh->mTangents[i].y;
-    vector.z = mesh->mTangents[i].z;
-    vertex.Tangent = vector;
-    // bitangent
-    vector.x = mesh->mBitangents[i].x;
-    vector.y = mesh->mBitangents[i].y;
-    vector.z = mesh->mBitangents[i].z;
-    vertex.Bitangent = vector;
+    if (mesh->mTangents) {
+      vector.x = mesh->mTangents[i].x;
+      vector.y = mesh->mTangents[i].y;
+      vector.z = mesh->mTangents[i].z;
+      vertex.Tangent = vector;
+      // bitangent
+      vector.x = mesh->mBitangents[i].x;
+      vector.y = mesh->mBitangents[i].y;
+      vector.z = mesh->mBitangents[i].z;
+      vertex.Bitangent = vector;
+    }
     vertices.push_back(vertex);
   }
   // now wak through each of the mesh's faces (a face is a mesh its triangle)

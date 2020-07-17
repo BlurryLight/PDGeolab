@@ -3,14 +3,19 @@
 // GLAD
 #include "glsupport.h"
 #include "resource_path_searcher.h"
+#include <OpenMesh/Core/IO/MeshIO.hh>
+#include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
+#include <OpenMesh/Core/Utils/PropertyManager.hh>
+#include <fstream>
 #include <glad/glad.h>
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_opengl3.h>
-
-#include <fstream>
 #include <iostream>
+#include <limits>
+#include <queue>
 #include <sstream>
+typedef OpenMesh::TriMesh_ArrayKernelT<> MyMesh;
 using namespace PD;
 static const GLuint SCR_WIDTH = 800;
 static const GLuint SCR_HEIGHT = 800;
@@ -86,12 +91,75 @@ int main() {
       (ResourcePathSearcher::root_path / "resources" / "models").u8string());
   resourcesPath.add_path(
       (ResourcePathSearcher::root_path / "resources" / "shaders").u8string());
+  resourcesPath.add_path(
+      (ResourcePathSearcher::root_path / "resources" / "models").u8string());
 
   Shader shader(resourcesPath.find_path("simple.vert"),
                 resourcesPath.find_path("simple.frag"));
-  Model model(resourcesPath.find_path("cube.obj"));
+  MyMesh mesh;
+  // read mesh from stdin
+  if (!OpenMesh::IO::read_mesh(
+          mesh,
+          resourcesPath.find_path(std::vector<std::string>{"cube.obj"}))) {
+    return -1;
+  }
+  std::unordered_map<MyMesh::VHandle, float> dis;
+  std::unordered_map<MyMesh::VHandle, MyMesh::VHandle> parent;
+  //  dis.assign(mesh.points()->size(), std::numeric_limits<float>::max());
+  for (auto v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it) {
+    dis.emplace(*v_it, std::numeric_limits<float>::max());
+  }
+  auto cmp = [](std::pair<MyMesh::VHandle, float> a,
+                std::pair<MyMesh::VHandle, float> b) {
+    return a.second > b.second;
+  };
+
+  uint des = 7;
+  if (des >= dis.size())
+    throw std::out_of_range("destination out of vertex indices range!");
+  std::priority_queue<std::pair<MyMesh::VHandle, float>,
+                      std::vector<std::pair<MyMesh::VHandle, float>>,
+                      decltype(cmp)>
+      pq(cmp);
+  auto v_it = mesh.vertices_begin();
+  dis[*v_it] = 0;
+  parent[*v_it] = *(mesh.vertices_end());
+  pq.push({*v_it, 0});
+
+  while (!pq.empty()) {
+    auto tmp = pq.top();
+    pq.pop();
+    for (auto vvit = mesh.vv_iter(tmp.first); vvit.is_valid(); vvit++) {
+      //      std::cout << "vvit:" << mesh.point(*vvit) << std::endl;
+      float weight = (mesh.point(*vvit) - mesh.point(tmp.first)).norm();
+      if (dis[*vvit] > weight + dis[tmp.first]) {
+        dis[*vvit] = weight + dis[tmp.first];
+        pq.push({vvit, weight + dis[tmp.first]});
+        parent[*vvit] = tmp.first;
+        if (vvit->idx() == des)
+          goto find_des;
+      }
+    }
+  }
+find_des:
+
+  std::cout << "num of vertices: " << dis.size() << std::endl;
+  std::vector<uint> path;
+  for (auto it = mesh.vertex_handle(des); it != *mesh.vertices_end();) {
+    path.push_back(it.idx());
+    it = parent[it];
+  }
+  std::cout << "Path from " << 0 << "to " << des << std::endl;
+  for (auto r = path.rbegin(); r != path.rend(); r++) {
+    std::cout << *r << "->";
+  }
+  std::cout << "end" << std::endl;
+
+  //  Model model(resourcesPath.find_path("cube.obj"));
+  Model model("cube_fine.obj");
   cam = Camera();
   // main loop
+  bool wireframe_mode = false;
   while (!glfwWindowShouldClose(window)) {
 
     float currentFrame = glfwGetTime();
@@ -124,6 +192,8 @@ int main() {
                     cam.Position.z);
       }
 
+      if (ImGui::Button("Toggle WireFrame"))
+        wireframe_mode = !wireframe_mode;
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
                   1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
       ImGui::End();
@@ -132,6 +202,10 @@ int main() {
 
     glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if (wireframe_mode)
+      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    else
+      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
     auto projection = glm::perspective(
         glm::radians(cam.Zoom), (float)SCR_WIDTH / SCR_HEIGHT, 0.1f, 2000.0f);

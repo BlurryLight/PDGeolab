@@ -24,6 +24,7 @@ if(NOT assimp_FOUND)
     include(cmake/assimp.cmake)
 endif()
 
+include(cmake/openmesh.cmake)
 
 # Source files
 set(SRC_DIR "src")
@@ -51,15 +52,16 @@ set(BUILD_SYSTEM_VERSION_VAR ${CMAKE_SYSTEM_VERSION})
 set(BUILD_SYSTEM_NAME_VAR ${CMAKE_SYSTEM_NAME})
 string(TIMESTAMP BUILD_UTC_TIMESTAMP_VAR UTC)
 configure_file(${CMAKE_SOURCE_DIR}/src/cmake_vars.h.in ${CMAKE_SOURCE_DIR}/src/cmake_vars.h)
-
 # Executable definition and properties
 add_executable(${PROJECT_NAME} ${SOURCES} ${IMGUI_SOURCE})
-target_include_directories(${PROJECT_NAME} PRIVATE third_party/ ${glm_SOURCE_DIR} ${GLM_INCLUDE_DIR})
+target_include_directories(${PROJECT_NAME} PRIVATE third_party/ ${glm_SOURCE_DIR} ${GLM_INCLUDE_DIR} ${openmesh_SOURCE_DIR}/src/)
 target_compile_definitions(${PROJECT_NAME} PRIVATE -DIMGUI_IMPL_OPENGL_LOADER_GLAD)
 target_link_libraries(${PROJECT_NAME} PRIVATE
   glad
   glfw
   assimp
+  OpenMeshTools
+  OpenMeshCore
   ${CMAKE_DL_LIBS}
   )
 set_target_properties(${PROJECT_NAME}
