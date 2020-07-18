@@ -31,6 +31,107 @@ static bool firstMouse = true;
 static double lastX, lastY;
 static Camera cam;
 static bool AllowMouseMove = true;
+
+void prim_mst(const MyMesh &mesh, int begin_node) {
+  std::unordered_map<MyMesh::VHandle, float> dis;
+  std::unordered_map<MyMesh::VHandle, MyMesh::VHandle> parent;
+  std::unordered_map<MyMesh::VHandle, bool> inMST;
+  //  dis.assign(mesh.points()->size(), std::numeric_limits<float>::max());
+  for (auto v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it) {
+    dis.emplace(*v_it, std::numeric_limits<float>::max());
+    inMST.emplace(*v_it, false);
+  }
+  auto cmp = [](std::pair<MyMesh::VHandle, float> a,
+                std::pair<MyMesh::VHandle, float> b) {
+    return a.second > b.second;
+  };
+
+  std::priority_queue<std::pair<MyMesh::VHandle, float>,
+                      std::vector<std::pair<MyMesh::VHandle, float>>,
+                      decltype(cmp)>
+      pq(cmp);
+  auto v_it = mesh.vertex_handle(begin_node);
+  dis[v_it] = 0;
+  parent[v_it] = *(mesh.vertices_end());
+  pq.push({v_it, 0});
+
+  while (!pq.empty()) {
+    auto tmp = pq.top();
+    pq.pop();
+    if (inMST[tmp.first])
+      continue; // avoid infinite loop
+    inMST[tmp.first] = true;
+    for (auto vvit = mesh.cvv_iter(tmp.first); vvit.is_valid(); vvit++) {
+      //      std::cout << "vvit:" << mesh.point(*vvit) << std::endl;
+      float weight = (mesh.point(*vvit) - mesh.point(tmp.first)).norm();
+      if (inMST[*vvit] == false && dis[*vvit] > weight) {
+        dis[*vvit] = weight;
+        pq.push({vvit, weight});
+        parent[*vvit] = tmp.first;
+      }
+    }
+  }
+  std::cout << "num of vertices: " << dis.size() << std::endl;
+  for (auto vit = mesh.vertices_begin() + 1; vit != mesh.vertices_end();
+       vit++) {
+    std::printf("%d -> %d ", parent[*vit].idx(), vit->idx());
+  }
+  std::cout << "end" << std::endl;
+}
+void dijkstra(const MyMesh &mesh, int begin_node, int end_node) {
+
+  std::unordered_map<MyMesh::VHandle, float> dis;
+  std::unordered_map<MyMesh::VHandle, MyMesh::VHandle> parent;
+  //  dis.assign(mesh.points()->size(), std::numeric_limits<float>::max());
+  for (auto v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it) {
+    dis.emplace(*v_it, std::numeric_limits<float>::max());
+  }
+  auto cmp = [](std::pair<MyMesh::VHandle, float> a,
+                std::pair<MyMesh::VHandle, float> b) {
+    return a.second > b.second;
+  };
+
+  uint des = end_node;
+  if (des >= dis.size())
+    throw std::out_of_range("destination out of vertex indices range!");
+  std::priority_queue<std::pair<MyMesh::VHandle, float>,
+                      std::vector<std::pair<MyMesh::VHandle, float>>,
+                      decltype(cmp)>
+      pq(cmp);
+  auto v_it = mesh.vertex_handle(begin_node);
+  dis[v_it] = 0;
+  parent[v_it] = *(mesh.vertices_end());
+  pq.push({v_it, 0});
+
+  while (!pq.empty()) {
+    auto tmp = pq.top();
+    pq.pop();
+    for (auto vvit = mesh.cvv_iter(tmp.first); vvit.is_valid(); vvit++) {
+      //      std::cout << "vvit:" << mesh.point(*vvit) << std::endl;
+      float weight = (mesh.point(*vvit) - mesh.point(tmp.first)).norm();
+      if (dis[*vvit] > weight + dis[tmp.first]) {
+        dis[*vvit] = weight + dis[tmp.first];
+        pq.push({vvit, weight + dis[tmp.first]});
+        parent[*vvit] = tmp.first;
+        if (vvit->idx() == des)
+          goto find_des;
+      }
+    }
+  }
+find_des:
+
+  std::cout << "num of vertices: " << dis.size() << std::endl;
+  std::vector<uint> path;
+  for (auto it = mesh.vertex_handle(des); it != *mesh.vertices_end();) {
+    path.push_back(it.idx());
+    it = parent[it];
+  }
+  std::cout << "Path from " << begin_node << " to " << des << std::endl;
+  for (auto r = path.rbegin(); r != path.rend(); r++) {
+    std::cout << *r << "->";
+  }
+  std::cout << "end" << std::endl;
+}
 int main() {
   if (!glfwInit()) {
     std::cerr << "FATAL INIT FAILED" << std::endl;
@@ -103,60 +204,9 @@ int main() {
           resourcesPath.find_path(std::vector<std::string>{"cube.obj"}))) {
     return -1;
   }
-  std::unordered_map<MyMesh::VHandle, float> dis;
-  std::unordered_map<MyMesh::VHandle, MyMesh::VHandle> parent;
-  //  dis.assign(mesh.points()->size(), std::numeric_limits<float>::max());
-  for (auto v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it) {
-    dis.emplace(*v_it, std::numeric_limits<float>::max());
-  }
-  auto cmp = [](std::pair<MyMesh::VHandle, float> a,
-                std::pair<MyMesh::VHandle, float> b) {
-    return a.second > b.second;
-  };
-
-  uint des = 7;
-  if (des >= dis.size())
-    throw std::out_of_range("destination out of vertex indices range!");
-  std::priority_queue<std::pair<MyMesh::VHandle, float>,
-                      std::vector<std::pair<MyMesh::VHandle, float>>,
-                      decltype(cmp)>
-      pq(cmp);
-  auto v_it = mesh.vertices_begin();
-  dis[*v_it] = 0;
-  parent[*v_it] = *(mesh.vertices_end());
-  pq.push({*v_it, 0});
-
-  while (!pq.empty()) {
-    auto tmp = pq.top();
-    pq.pop();
-    for (auto vvit = mesh.vv_iter(tmp.first); vvit.is_valid(); vvit++) {
-      //      std::cout << "vvit:" << mesh.point(*vvit) << std::endl;
-      float weight = (mesh.point(*vvit) - mesh.point(tmp.first)).norm();
-      if (dis[*vvit] > weight + dis[tmp.first]) {
-        dis[*vvit] = weight + dis[tmp.first];
-        pq.push({vvit, weight + dis[tmp.first]});
-        parent[*vvit] = tmp.first;
-        if (vvit->idx() == des)
-          goto find_des;
-      }
-    }
-  }
-find_des:
-
-  std::cout << "num of vertices: " << dis.size() << std::endl;
-  std::vector<uint> path;
-  for (auto it = mesh.vertex_handle(des); it != *mesh.vertices_end();) {
-    path.push_back(it.idx());
-    it = parent[it];
-  }
-  std::cout << "Path from " << 0 << "to " << des << std::endl;
-  for (auto r = path.rbegin(); r != path.rend(); r++) {
-    std::cout << *r << "->";
-  }
-  std::cout << "end" << std::endl;
-
-  //  Model model(resourcesPath.find_path("cube.obj"));
-  Model model("cube_fine.obj");
+  //  dijkstra(mesh, 1, 6);
+  prim_mst(mesh, 0);
+  Model model(resourcesPath.find_path("cube.obj"));
   cam = Camera();
   // main loop
   bool wireframe_mode = false;
