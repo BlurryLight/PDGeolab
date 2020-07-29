@@ -16,6 +16,8 @@
 #include <queue>
 #include <sstream>
 typedef OpenMesh::TriMesh_ArrayKernelT<> MyMesh;
+OpenMesh::VPropHandleT<OpenMesh::Vec3f> laplacian;
+
 using namespace PD;
 static const GLuint SCR_WIDTH = 800;
 static const GLuint SCR_HEIGHT = 800;
@@ -132,6 +134,110 @@ find_des:
   }
   std::cout << "end" << std::endl;
 }
+
+void cot_weight(MyMesh &mesh) {
+  OpenMesh::EPropHandleT<MyMesh::Scalar> eWeights, atheta, btheta;
+  mesh.add_property(laplacian);
+  mesh.add_property(atheta);
+  mesh.add_property(btheta);
+  mesh.add_property(eWeights);
+  MyMesh::EdgeIter e_it, e_end(mesh.edges_end());
+  MyMesh::Scalar weight, a, b;
+  MyMesh::HalfedgeHandle h0, h1, h2;
+  MyMesh::Point p0, p1, p2;
+  MyMesh::Normal d0, d1;
+  const float pi = 3.14159265359;
+
+  for (e_it = mesh.edges_begin(); e_it != e_end; ++e_it) {
+    weight = 0.0;
+
+    h0 = mesh.halfedge_handle(*e_it, 0);
+    p0 = mesh.point(mesh.to_vertex_handle(h0));
+    h1 = mesh.halfedge_handle(*e_it, 1);
+    p1 = mesh.point(mesh.to_vertex_handle(h1));
+
+    h2 = mesh.next_halfedge_handle(h0);
+    p2 = mesh.point(mesh.to_vertex_handle(h2));
+    d0 = (p0 - p2);
+    d0.normalize();
+    d1 = (p1 - p2);
+    d1.normalize();
+    a = acos(dot(d0, d1));
+    weight += MyMesh::Scalar(1.0) / tan(a);
+
+    h2 = mesh.next_halfedge_handle(h1);
+    p2 = mesh.point(mesh.to_vertex_handle(h2));
+    d0 = (p0 - p2);
+    d0.normalize();
+    d1 = (p1 - p2);
+    d1.normalize();
+    b = acos(dot(d0, d1));
+    weight += MyMesh::Scalar(1.0) / tan(b);
+
+    mesh.property(eWeights, *e_it) = weight;
+    mesh.property(atheta, *e_it) = a * 180.0 / pi;
+    mesh.property(btheta, *e_it) = b * 180.0 / pi;
+  }
+  std::vector<float> curvs;
+  for (auto v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); v_it++) {
+    OpenMesh::Vec3f weight{0.0f};
+    float area = 0.0f;
+    p0 = mesh.point(*v_it);
+    for (auto ve_it = mesh.voh_iter(*v_it); ve_it.is_valid(); ++ve_it) {
+      p1 = mesh.point(ve_it->to());
+      p2 = mesh.point(ve_it->next().to());
+      MyMesh::Point bary = (p0 + p1 + p2) / 3.0;
+      auto mid_p0p1 = (p1 - p0) / 2;
+      auto mid_p0p2 = (p2 - p0) / 2;
+      auto p0_bary = (bary - p0);
+
+      weight += mesh.property(eWeights, ve_it->edge()) * (p1 - p0);
+      float theta1 = acos(dot(mid_p0p1.normalize(), p0_bary.normalize()));
+      float theta2 = acos(dot(mid_p0p2.normalize(), p0_bary.normalize()));
+      area += 0.5f * sin(theta1) * mid_p0p1.length() * p0_bary.length();
+      area += 0.5f * sin(theta2) * mid_p0p2.length() * p0_bary.length();
+    }
+    mesh.property(laplacian, *v_it) = weight / (2 * area);
+  }
+}
+
+void mean_curvature(const MyMesh &mesh) {
+  for (auto v : mesh.vertices()) {
+    auto i = dot(mesh.normal(v), mesh.property(laplacian, v)) > 0 ? 1 : -1;
+    std::cout << mesh.property(laplacian, v).length() / (-2 * i) << std::endl;
+  }
+}
+
+void abs_mean_curvature(const MyMesh &mesh) {
+  for (auto v : mesh.vertices()) {
+    std::cout << mesh.property(laplacian, v).length() / 2 << std::endl;
+  }
+}
+
+void Gaussian_curvature(const MyMesh &mesh) {
+
+  for (auto v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); v_it++) {
+    float area = 0.0f;
+    float thetaj = 0.0f;
+    auto p0 = mesh.point(*v_it);
+    for (auto ve_it = mesh.cvoh_iter(*v_it); ve_it.is_valid(); ++ve_it) {
+      auto p1 = mesh.point(ve_it->to());
+      auto p2 = mesh.point(ve_it->next().to());
+      MyMesh::Point bary = (p0 + p1 + p2) / 3.0;
+      auto mid_p0p1 = (p1 - p0) / 2;
+      auto mid_p0p2 = (p2 - p0) / 2;
+      auto p0_bary = (bary - p0);
+
+      float theta1 = acos(dot(mid_p0p1.normalize(), p0_bary.normalize()));
+      float theta2 = acos(dot(mid_p0p2.normalize(), p0_bary.normalize()));
+      thetaj += acos(dot(mid_p0p2.normalize(), mid_p0p1.normalize()));
+      area += 0.5f * sin(theta1) * mid_p0p1.length() * p0_bary.length();
+      area += 0.5f * sin(theta2) * mid_p0p2.length() * p0_bary.length();
+    }
+    std::cout << (2 * M_PI - thetaj) / area << std::endl;
+  }
+}
+
 int main() {
   if (!glfwInit()) {
     std::cerr << "FATAL INIT FAILED" << std::endl;
@@ -204,8 +310,12 @@ int main() {
           resourcesPath.find_path(std::vector<std::string>{"cube.obj"}))) {
     return -1;
   }
+  mesh.request_vertex_normals();
   //  dijkstra(mesh, 1, 6);
-  prim_mst(mesh, 0);
+  //  prim_mst(mesh, 0);
+  cot_weight(mesh);
+  mean_curvature(mesh);
+  //  Gaussian_curvature(mesh);
   Model model(resourcesPath.find_path("cube.obj"));
   cam = Camera();
   // main loop
