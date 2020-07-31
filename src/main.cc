@@ -6,6 +6,7 @@
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 #include <OpenMesh/Core/Utils/PropertyManager.hh>
+#include <algorithm>
 #include <fstream>
 #include <glad/glad.h>
 #include <imgui/imgui.h>
@@ -135,6 +136,7 @@ find_des:
   std::cout << "end" << std::endl;
 }
 
+double computeVoronoiArea(MyMesh::VertexHandle vertex, const MyMesh &mesh);
 void cot_weight(MyMesh &mesh) {
   OpenMesh::EPropHandleT<MyMesh::Scalar> eWeights, atheta, btheta;
   mesh.add_property(laplacian);
@@ -181,48 +183,72 @@ void cot_weight(MyMesh &mesh) {
   std::vector<float> curvs;
   for (auto v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); v_it++) {
     OpenMesh::Vec3f weight{0.0f};
-    float area = 0.0f;
+    float area = computeVoronoiArea(*v_it, mesh);
     p0 = mesh.point(*v_it);
     for (auto ve_it = mesh.voh_iter(*v_it); ve_it.is_valid(); ++ve_it) {
       p1 = mesh.point(ve_it->to());
       p2 = mesh.point(ve_it->next().to());
-      MyMesh::Point bary = (p0 + p1 + p2) / 3.0;
-      auto mid_p0p1 = (p1 - p0) / 2;
-      auto mid_p0p2 = (p2 - p0) / 2;
-      auto p0_bary = (bary - p0);
-
       weight += mesh.property(eWeights, ve_it->edge()) * (p1 - p0);
-      float theta1 = acos(dot(mid_p0p1.normalize(), p0_bary.normalize()));
-      float theta2 = acos(dot(mid_p0p2.normalize(), p0_bary.normalize()));
-      area += 0.5f * sin(theta1) * mid_p0p1.length() * p0_bary.length();
-      area += 0.5f * sin(theta2) * mid_p0p2.length() * p0_bary.length();
     }
     mesh.property(laplacian, *v_it) = weight / (2 * area);
   }
 }
 
-void mean_curvature(const MyMesh &mesh) {
+// void mean_curvature(const MyMesh &mesh) {
+//  for (auto v : mesh.vertices()) {
+//    auto i = dot(mesh.normal(v), mesh.property(laplacian, v)) > 0 ? 1 : -1;
+//    std::cout << mesh.property(laplacian, v).length() / (-2 * i) << std::endl;
+//  }
+//}
+
+auto abs_mean_curvature(const MyMesh &mesh) {
+  std::vector<float> curv;
   for (auto v : mesh.vertices()) {
-    auto i = dot(mesh.normal(v), mesh.property(laplacian, v)) > 0 ? 1 : -1;
-    std::cout << mesh.property(laplacian, v).length() / (-2 * i) << std::endl;
+    curv.emplace_back(mesh.property(laplacian, v).length() / 2.0f);
   }
+  return curv;
 }
+double computeVoronoiArea(MyMesh::VertexHandle vertex, const MyMesh &mesh) {
+  double voronoiArea = 0.0;
 
-void abs_mean_curvature(const MyMesh &mesh) {
-  for (auto v : mesh.vertices()) {
-    std::cout << mesh.property(laplacian, v).length() / 2 << std::endl;
-  }
-}
+  auto he_it = mesh.cvoh_iter(vertex);
 
-void Gaussian_curvature(const MyMesh &mesh) {
+  auto p11 = mesh.point(vertex);
+  do {
+    auto p12 = mesh.point(he_it->to());
+    auto p13 = mesh.point(he_it->next().to());
+    auto v11 = p12 - p13;
+    auto v12 = p11 - p13;
+    v11 = v11.normalize();
+    v12 = v12.normalize();
+    double alpha = acos(dot(v11, v12));
 
+    auto p22 = mesh.point(he_it->opp().next().to());
+    auto v21 = p12 - p22;
+    auto v22 = p11 - p22;
+    v21 = v21.normalize();
+    v22 = v22.normalize();
+    double beta = acos(dot(v21, v22));
+    double length = mesh.calc_edge_sqr_length(*he_it);
+
+    voronoiArea += (1.0 / 8.0) * (1.0 / tan(alpha) + 1.0 / tan(beta)) * length;
+
+    ++he_it;
+  } while (he_it.is_valid());
+
+  return voronoiArea;
+};
+
+std::vector<float> Gaussian_curvature(const MyMesh &mesh) {
+
+  std::vector<float> curv;
   for (auto v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); v_it++) {
-    float area = 0.0f;
+    float area = computeVoronoiArea(*v_it, mesh);
     float thetaj = 0.0f;
     auto p0 = mesh.point(*v_it);
     for (auto ve_it = mesh.cvoh_iter(*v_it); ve_it.is_valid(); ++ve_it) {
       auto p1 = mesh.point(ve_it->to());
-      auto p2 = mesh.point(ve_it->next().to());
+      auto p2 = mesh.point(ve_it->prev().from());
       MyMesh::Point bary = (p0 + p1 + p2) / 3.0;
       auto mid_p0p1 = (p1 - p0) / 2;
       auto mid_p0p2 = (p2 - p0) / 2;
@@ -230,12 +256,15 @@ void Gaussian_curvature(const MyMesh &mesh) {
 
       float theta1 = acos(dot(mid_p0p1.normalize(), p0_bary.normalize()));
       float theta2 = acos(dot(mid_p0p2.normalize(), p0_bary.normalize()));
-      thetaj += acos(dot(mid_p0p2.normalize(), mid_p0p1.normalize()));
-      area += 0.5f * sin(theta1) * mid_p0p1.length() * p0_bary.length();
-      area += 0.5f * sin(theta2) * mid_p0p2.length() * p0_bary.length();
+      thetaj += (theta1 + theta2);
+      //      area += 0.5f * sin(theta1) * mid_p0p1.sqrnorm() *
+      //      p0_bary.sqrnorm(); area += 0.5f * sin(theta2) * mid_p0p2.sqrnorm()
+      //      * p0_bary.sqrnorm();
     }
-    std::cout << (2 * M_PI - thetaj) / area << std::endl;
+    //    std::cout << area << std::endl;
+    curv.emplace_back((2 * M_PI - thetaj) / area);
   }
+  return curv;
 }
 
 int main() {
@@ -307,19 +336,33 @@ int main() {
   // read mesh from stdin
   if (!OpenMesh::IO::read_mesh(
           mesh,
-          resourcesPath.find_path(std::vector<std::string>{"cube.obj"}))) {
+          resourcesPath.find_path(std::vector<std::string>{"bunny.obj"}))) {
     return -1;
   }
   mesh.request_vertex_normals();
   //  dijkstra(mesh, 1, 6);
   //  prim_mst(mesh, 0);
   cot_weight(mesh);
-  mean_curvature(mesh);
-  //  Gaussian_curvature(mesh);
-  Model model(resourcesPath.find_path("cube.obj"));
+  auto curv = abs_mean_curvature(mesh);
+  //  auto curv = Gaussian_curvature(mesh);
+  Model model(resourcesPath.find_path("bunny.obj"));
+  glBindVertexArray(model.meshes[0].VAO);
+  uint VBO;
+  glGenBuffers(1, &VBO);
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferData(GL_ARRAY_BUFFER, curv.size() * sizeof(float), curv.data(),
+               GL_STATIC_DRAW);
+  glEnableVertexAttribArray(5);
+  glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, 0, (void *)0);
+  glBindVertexArray(0);
   cam = Camera();
   // main loop
   bool wireframe_mode = false;
+  auto curv_copy = curv;
+  std::sort(curv_copy.begin(), curv_copy.end());
+  float ming = curv_copy[curv_copy.size() * 0.0];
+  float maxg = curv_copy[curv_copy.size() * 0.9];
+  std::cout << ming << " " << maxg << std::endl;
   while (!glfwWindowShouldClose(window)) {
 
     float currentFrame = glfwGetTime();
@@ -374,6 +417,8 @@ int main() {
     shader.setMat4("model", glm::mat4(1.0));
     shader.setMat4("view", view);
     shader.setMat4("projection", projection);
+    shader.setFloat("ming", ming);
+    shader.setFloat("maxg", maxg);
     model.Draw(shader);
 
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

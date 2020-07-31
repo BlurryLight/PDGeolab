@@ -588,9 +588,12 @@ void Model::Draw(Shader &shader) {
 void Model::loadModel(const std::string &path) {
   // read file via ASSIMP
   Assimp::Importer importer;
-  const aiScene *scene = importer.ReadFile(
-      path, aiProcess_Triangulate | aiProcess_FlipUVs |
-                aiProcess_CalcTangentSpace | aiProcess_GenNormals);
+  const aiScene *scene =
+      importer.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs |
+                                  aiProcess_JoinIdenticalVertices);
+  //  const aiScene *scene = importer.ReadFile(
+  //      path, aiProcess_Triangulate | aiProcess_FlipUVs |
+  //                aiProcess_CalcTangentSpace | aiProcess_GenNormals);
   // check for errors
   if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ||
       !scene->mRootNode) // if is Not Zero
@@ -640,10 +643,12 @@ Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene) {
     vector.z = mesh->mVertices[i].z;
     vertex.Position = vector;
     // normals
-    vector.x = mesh->mNormals[i].x;
-    vector.y = mesh->mNormals[i].y;
-    vector.z = mesh->mNormals[i].z;
-    vertex.Normal = vector;
+    if (mesh->mNormals) {
+      vector.x = mesh->mNormals[i].x;
+      vector.y = mesh->mNormals[i].y;
+      vector.z = mesh->mNormals[i].z;
+      vertex.Normal = vector;
+    }
     // texture coordinates
     if (mesh->mTextureCoords[0]) // does the mesh contain texture coordinates?
     {
